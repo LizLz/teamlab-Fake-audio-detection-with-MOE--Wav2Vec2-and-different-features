@@ -6,7 +6,11 @@ import random
 from tqdm import tqdm
 
 # Set a fixed random seed for reproducibility
-random.seed(42)  # The number can be any integer, but I've used 42 as an arbitrary choice to keep it consistent.
+#random.seed(42)  # The number can be any integer, but I've used 42 as an arbitrary choice to keep it consistent.
+
+# Paths to the audio files and output directories
+#protocol_file = 'D:/TeamLab/dataset/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt'
+#audio_base_path = 'D:/TeamLab/dataset/LA/ASVspoof2019_LA_train/flac'
 
 def limit_audio_length(y, sr, target_length=4):
     """
@@ -52,20 +56,10 @@ def get_Melspec(audio_file):
     log_mel_tensor = torch.from_numpy(log_mel_spectrogram).float()
     return log_mel_tensor
 
-def get_audio_files(folder_path, num_files):
-    """
-    Retrieves a specific number of audio files from a folder.
-
-    Parameters:
-        folder_path (str): Path to the folder containing audio files.
-        num_files (int): Number of files to retrieve.
-
-    Returns:
-        list: List of file paths for the selected audio files.
-    """
-    all_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.flac')]
-    selected_files = random.sample(all_files, min(num_files, len(all_files)))
-    return selected_files
+#def get_audio_files(folder_path, num_files):    
+#    all_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.flac')]
+#    selected_files = random.sample(all_files, min(num_files, len(all_files)))
+#    return selected_files
 
 def save_mel_spectrogram_image(mel_tensor, output_path):
     """
@@ -88,9 +82,11 @@ def save_mel_spectrogram_image(mel_tensor, output_path):
     plt.close()
 
 ### Main script to process audio files and save mel spectrograms ###
-folder_path = "D:/TeamLab/dataset/LA/ASVspoof2019_LA_train/flac"
-num_files_to_process = 3000  # Change this to the desired number of files
-selected_audio_files = get_audio_files(folder_path, num_files_to_process)
+folder_path = "D:/TeamLab/dataset/LA/ASVspoof2019_LA_dev/flac"
+#num_files_to_process = 3000  # Change this to the desired number of files
+
+# Update selected_audio_files to process all .flac files in the folder
+selected_audio_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.flac')]
 
 mel_tensors = []
 for audio_file in tqdm(selected_audio_files, desc="Processing audio files"): #uses tqdm to show progress bar
@@ -99,17 +95,18 @@ for audio_file in tqdm(selected_audio_files, desc="Processing audio files"): #us
     mel_tensors.append(mel_tensor)
 
 ### Save tensors and images ###
-output_tensor_dir = "C:/Users/felip/teamlab-phonetics/feature_extraction/mel_segment_outputs/tensors_training_set"
+output_tensor_dir = "C:/Users/felip/teamlab-phonetics/feature_extraction/mel_segment_outputs/tensors_development_set"
 os.makedirs(output_tensor_dir, exist_ok=True) # Create the output directory if it doesn't exist
 
 ## Save tensors ##
-for i, mel_tensor in enumerate(tqdm(mel_tensors, desc="Saving tensors")): #this loops through the mel_tensors list and saves each tensor
-    # Save each tensor as a .pt file
-    tensor_path = os.path.join(output_tensor_dir, f'mel_segment_{i:03d}.pt') # The filename is formatted with leading zeros (e.g., mel_segment_000.pt, mel_segment_001.pt, etc.)
+# Update the tensor saving logic to retain the original file names
+for audio_file, mel_tensor in zip(selected_audio_files, mel_tensors):
+    original_name = os.path.splitext(os.path.basename(audio_file))[0]  # Extract the original file name without extension
+    tensor_path = os.path.join(output_tensor_dir, f'{original_name}.pt')  # Use the original name for the tensor file
     torch.save(mel_tensor, tensor_path)
 
 # Uncomment the following lines to save the images as well ##
-#output_image_dir = "C:/Users/felip/teamlab-phonetics/feature_extraction/mel_segment_outputs/images_training_set"
+#output_image_dir = "C:/Users/felip/teamlab-phonetics/feature_extraction/mel_segment_outputs/images_development_set"
 #os.makedirs(output_image_dir, exist_ok=True)
 #for i, mel_tensor in enumerate(tqdm(mel_tensors, desc="Saving images")):
 #    image_path = os.path.join(output_image_dir, f'mel_segment_{i:03d}.png')

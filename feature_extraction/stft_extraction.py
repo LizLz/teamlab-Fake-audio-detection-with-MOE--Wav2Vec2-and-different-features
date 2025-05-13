@@ -45,6 +45,26 @@ def get_STFT(audio_file):
     stft_tensor = torch.from_numpy(stft_magnitude).float()
     return stft_tensor
 
+def save_stft_spectrogram_image(stft_tensor, output_path):
+    """
+    Saves a STFT spectrogram tensor as an image.
+
+    Parameters:
+        STFT_tensor (torch.Tensor): The STFT spectrogram tensor.
+        output_path (str): Path to save the image.
+    """
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(10, 4))
+    plt.imshow(stft_tensor.numpy(), aspect='auto', origin='lower', cmap='viridis')
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('STFT Spectrogram')
+    plt.xlabel('Time Frames')
+    plt.ylabel('STFT Frequency Bins')
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
 folder_path = "D:/TeamLab/dataset/LA/ASVspoof2019_LA_train/flac"
 num_files_to_process = 3000
 selected_audio_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith('.flac')][:num_files_to_process]
@@ -61,4 +81,13 @@ for i, stft_tensor in enumerate(tqdm(stft_tensors, desc="Saving tensors")):
     tensor_path = os.path.join(output_tensor_dir, f'stft_segment_{i:03d}.pt')
     torch.save(stft_tensor, tensor_path)
 
+# Uncomment the following lines to save the images as well ##
+output_image_dir = "C:/Users/felip/teamlab-phonetics/feature_extraction/stft_segment_outputs/images_training_set"
+os.makedirs(output_image_dir, exist_ok=True)
+for i, stft_tensor in enumerate(tqdm(stft_tensors, desc="Saving images")):
+    image_path = os.path.join(output_image_dir, f'mel_segment_{i:03d}.png')
+    save_stft_spectrogram_image(stft_tensor, image_path)
+
 print("STFT tensors saved successfully.")
+print(stft_tensors[0].shape)  # Print the shape of the first tensor for verification
+print(stft_tensors[1].shape)  # Print the shape of the second tensor for verificat
