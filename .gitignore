@@ -1,4 +1,6 @@
 feature_extraction/mel_segment_outputs
 feature_extraction/stft_segment_outputs
+feature_extraction/mfcc_segment_outputs
 feature_extraction/training_set_audio
+
 .venv
