@@ -9,26 +9,40 @@ import matplotlib.pyplot as plt
 import os
 
 # --------------------------
-# 1. Define your model class
+# 1. LFCC + delta + delta delta model (static fc1 initialization)
 # --------------------------
+EXPECTED_TIMEFRAMES = 126  # Must match training
+
+def get_fc1_input_dim():
+    """
+    Calculate the input dimension to fc1 after conv/pool stack.
+    For input [120, 126]: after two MaxPool1d layers (kernel=2, stride=2): 126 -> 63 -> 31
+    So output shape is [batch, 64, 31], so fc1_input_dim = 64*31 = 1984
+    """
+    pooled_frames = EXPECTED_TIMEFRAMES
+    for _ in range(2):  # two pooling layers
+        pooled_frames = pooled_frames // 2
+    return 64 * pooled_frames
+
 class SpoofDetectionModel(nn.Module):
-    def __init__(self, hidden_dim, fc1_input_dim, dropout_prob=0.5):
+    def __init__(self, hidden_dim, dropout_prob=0.5):
         super(SpoofDetectionModel, self).__init__()
+        # 1D Convolutional layers
         self.conv1 = nn.Conv1d(in_channels=120, out_channels=32, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
         self.dropout = nn.Dropout(dropout_prob)
+        # Fully connected layers (static initialization)
+        fc1_input_dim = get_fc1_input_dim()
         self.fc1 = nn.Linear(fc1_input_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, 1)
         self.init_weights()
-        
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
                 torch.nn.init.kaiming_uniform_(m.weight, mode='fan_in', nonlinearity='relu')
                 if m.bias is not None:
                     torch.nn.init.zeros_(m.bias)
-        
     def forward(self, x):
         # x: [batch, 120, timeframes]
         x = self.pool(torch.relu(self.conv1(x)))
@@ -45,6 +59,9 @@ class SpoofDetectionModel(nn.Module):
 # --------------------------
 
 def limit_audio_length(waveform, sr, target_sec=4):
+    """
+    Crop or repeat-pad waveform to target_sec seconds.
+    """
     target_samples = target_sec * sr
     current_samples = waveform.shape[1]
     if current_samples > target_samples:
@@ -54,9 +71,10 @@ def limit_audio_length(waveform, sr, target_sec=4):
         extended = waveform.repeat(1, repeats)
         return extended[:, :target_samples]
 
-EXPECTED_TIMEFRAMES = 126  # Must match training
-
 def extract_lfcc_delta(audio_path):
+    """
+    Extract LFCC + delta + delta-delta features, pad/crop to EXPECTED_TIMEFRAMES.
+    """
     waveform, sr = torchaudio.load(audio_path)
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
@@ -70,18 +88,19 @@ def extract_lfcc_delta(audio_path):
     delta = F.compute_deltas(lfcc)
     delta2 = F.compute_deltas(delta)
     features = torch.cat([lfcc, delta, delta2], dim=0)  # [120, timeframes]
-
-    # --- Pad or crop to expected timeframes ---
+    # Pad or crop to expected timeframes
     current_frames = features.shape[1]
     if current_frames < EXPECTED_TIMEFRAMES:
         pad_width = EXPECTED_TIMEFRAMES - current_frames
         features = torch.nn.functional.pad(features, (0, pad_width))
     elif current_frames > EXPECTED_TIMEFRAMES:
         features = features[:, :EXPECTED_TIMEFRAMES]
-    # ------------------------------------------
     return features
 
 def save_spectrogram_image(audio_path, output_path='melspectrogram.png'):
+    """
+    Save a mel spectrogram image for visualization.
+    """
     waveform, sr = torchaudio.load(audio_path)
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
@@ -97,10 +116,10 @@ def save_spectrogram_image(audio_path, output_path='melspectrogram.png'):
     return output_path
 
 def predict_with_pytorch(model, features):
-    # features: [120, timeframes]
-    print("features.shape before unsqueeze:", features.shape)
+    """
+    Run a forward pass and return predicted class and probability.
+    """
     input_tensor = features.unsqueeze(0)  # [1, 120, timeframes]
-    print("input_tensor.shape after unsqueeze:", input_tensor.shape)
     input_tensor = input_tensor.to(next(model.parameters()).device)
     with torch.no_grad():
         logit = model(input_tensor).item()
@@ -113,10 +132,12 @@ def predict_with_pytorch(model, features):
 # --------------------------
 @st.cache_resource
 def load_model():
+    """
+    Load the trained LFCC model and set to eval mode.
+    """
     hidden_dim = 128
     dropout_prob = 0.5
-    fc1_input_dim = 1984  # 64 * 31, calculated from your conv/pool stack
-    model = SpoofDetectionModel(hidden_dim=hidden_dim, fc1_input_dim=fc1_input_dim, dropout_prob=dropout_prob)
+    model = SpoofDetectionModel(hidden_dim=hidden_dim, dropout_prob=dropout_prob)
     state_dict = torch.load("lfcc_with_delta_v2_updated_model_deepfake_audio_detection_model.pt", map_location="cpu")
     model.load_state_dict(state_dict)
     model.eval()
