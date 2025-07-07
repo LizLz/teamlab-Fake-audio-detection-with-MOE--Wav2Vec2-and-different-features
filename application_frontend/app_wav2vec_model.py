@@ -63,39 +63,48 @@ def limit_audio_length(y, sr, target_length=4):
         repeats = target_samples // len(y) + 1
         return np.tile(y, repeats)[:target_samples]
 
-def extract_wav2vec_features(audio_path):
+def extract_wav2vec_features(waveform, sr):
     model_name = 'facebook/wav2vec2-base'
     pre_processor = Wav2Vec2Processor.from_pretrained(model_name)
     model = Wav2Vec2Model.from_pretrained(model_name)
-    waveform, sr = torchaudio.load(audio_path)
+
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
     if sr != 16000:
         resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
         waveform = resampler(waveform)
         sr = 16000
+
     inputs = pre_processor(waveform.squeeze(), sampling_rate=sr, return_tensors="pt")
     with torch.no_grad():
-        outputs = model(**inputs).last_hidden_state  # [B, T, D]
-        outputs = F.layer_norm(outputs, outputs.shape[-1:])  # normalize over dim=768
-        wav2vec_tensor = outputs.permute(0, 2, 1)  # [B, 768, T]
+        outputs = model(**inputs).last_hidden_state
+        outputs = F.layer_norm(outputs, outputs.shape[-1:])
+        wav2vec_tensor = outputs.permute(0, 2, 1)
     return wav2vec_tensor
 
 # --------------------------
-# 3. Spectrogram Saving (your preferred function)
+# 3. Spectrogram Saving
 # --------------------------
 def save_mel_spectrogram_image(mel_tensor, output_path):
     """
-    Saves a Mel spectrogram tensor as an image.
+    Saves a Mel spectrogram tensor as a high-quality image for presentations or analysis,
+    with axes, labels, and better resolution.
     """
-    plt.figure(figsize=(10, 4))
-    plt.imshow(mel_tensor.numpy(), aspect='auto', origin='lower', cmap='viridis')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title('Log Mel Spectrogram')
-    plt.xlabel('Time Frames')
-    plt.ylabel('Mel Frequency Bins')
+    fig, ax = plt.subplots(figsize=(12, 5), dpi=150)  # Higher DPI for clearer rendering
+    im = ax.imshow(mel_tensor.numpy(), aspect='auto', origin='lower', cmap='magma')
+    
+    # Add axis labels and title
+    ax.set_title('Log-Mel Spectrogram (dB)', fontsize=14)
+    ax.set_xlabel('Time Frames', fontsize=12)
+    ax.set_ylabel('Mel Frequency Bins', fontsize=12)
+    
+    # Color bar for intensity
+    cbar = plt.colorbar(im, ax=ax, format='%+2.0f dB')
+    cbar.set_label('Amplitude (dB)', fontsize=12)
+    
+    # Improve layout
     plt.tight_layout()
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches='tight', dpi=150)
     plt.close()
 
 # --------------------------
@@ -168,7 +177,6 @@ if uploaded_file is not None:
     # Display results (no thresholding, no class label)
     st.write(f"**Raw model output (logit):** {logit_value:.3f}")
     st.write(f"**Probability (bonafide):** {probability:.3f}")
-
 
 else:
     st.info("Please upload an audio file")
