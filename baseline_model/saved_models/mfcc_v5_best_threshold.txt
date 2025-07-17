@@ -1,0 +1,2 @@
+Best EER during Validation: 3.3341930379835976
+Best Threshold during Validation: -1.4290528297424316

@@ -11,7 +11,7 @@ audio_labels = {}
 # === Paths ===
 protocol_path = "D:\\Felipe\\Team Lab\\LA\\ASVspoof2019_LA_cm_protocols\\ASVspoof2019.LA.cm.eval.trl.txt"
 audio_base_path = "D:/Felipe/Team Lab/LA/ASVspoof2019_LA_eval/flac"
-output_tensor_dir = "D:\\Felipe\\Team Lab\\teamlab-phonetics\\feature_extraction\\logmel_segment_outputs\\logmel_eval_set"
+output_tensor_dir = "D:\\Felipe\\Team Lab\\teamlab-phonetics\\feature_extraction\\mfcc_segment_outputs\\mfcc_eval_set_with_delta"
 os.makedirs(output_tensor_dir, exist_ok=True)
 
 # === Load protocol labels ===
@@ -30,18 +30,19 @@ def limit_audio_length(y, sr, target_length=4):
     else:
         repeats = target_samples // len(y) + 1
         return np.tile(y, repeats)[:target_samples]
-
-def get_log_mel_tensor(audio_path):
+    
+def get_mfcc_tensor_with_deltas(audio_path, n_mfcc=40):
     y, sr = librosa.load(audio_path, sr=None)
     y = limit_audio_length(y, sr)
     try:
-        # Attempt to use the modern signature of melspectrogram
-        mel = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=2048, hop_length=512)
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc, n_fft=2048, hop_length=512)
     except TypeError:
-        # Fallback for older versions of librosa
-        mel = librosa.feature.melspectrogram(y, sr, n_fft=2048, hop_length=512)
-    log_mel = librosa.power_to_db(mel, ref=np.max)
-    return torch.from_numpy(log_mel).float()
+        mfcc = librosa.feature.mfcc(y, sr, n_mfcc=n_mfcc, n_fft=2048, hop_length=512)
+    delta = librosa.feature.delta(mfcc)
+    delta2 = librosa.feature.delta(mfcc, order=2)
+    # Concatenate along the first axis (feature axis)
+    mfcc_full = np.concatenate([mfcc, delta, delta2], axis=0)
+    return torch.from_numpy(mfcc_full).float()
 
 # === Process audio files ===
 audio_files = [f for f in os.listdir(audio_base_path) if f.endswith(".flac")]
@@ -54,10 +55,10 @@ for f in tqdm(audio_files, desc="Extracting and labeling"):
         print(f"Warning: No label found for {file_id}, skipping.")
         continue
 
-    log_mel_tensor = get_log_mel_tensor(file_path)
+    mfcc_tensor = get_mfcc_tensor_with_deltas(file_path)
     label = audio_labels[file_id]
 
     tensor_output_path = os.path.join(output_tensor_dir, f"{file_id}.pt")
-    torch.save((log_mel_tensor, label), tensor_output_path)
+    torch.save((mfcc_tensor, label), tensor_output_path)
 
 print("✅ All audio processed and saved with labels.")

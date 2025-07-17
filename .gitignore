@@ -4,6 +4,7 @@ feature_extraction/mfcc_segment_outputs
 feature_extraction/training_set_audio
 feature_extraction/lfcc_segment_outputs
 feature_extraction/wav2vec_updated_segment_outputs
+feature_extraction/logmel_segment_outputs
 lfcc_dev.zip
 lfcc_eval.zip
 lfcc_train.zip
